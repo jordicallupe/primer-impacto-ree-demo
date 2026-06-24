@@ -1,0 +1,44 @@
+services:
+  db:
+    networks:
+      - ree_network
+
+  api:
+    build:
+      context: ./server
+      target: development
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: ${DATABASE_URL}
+      REE_BASE_URL: ${REE_BASE_URL}
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN}
+    ports:
+      - "${API_PORT:-3000}:3000"
+      - "9229:9229"
+    command: npm run start:dev
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ree_network
+
+  client:
+    build:
+      context: ./client
+      target: development
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    environment:
+      VITE_API_URL: ${VITE_API_URL}
+    ports:
+      - "5173:5173"
+    command: npm run dev -- --host
+    networks:
+      - ree_network
+
+networks:
+  ree_network:

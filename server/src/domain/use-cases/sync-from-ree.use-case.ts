@@ -4,6 +4,10 @@ import { BALANCE_REPOSITORY } from '../ports/balance-repository.port';
 import type { IREEApiClient } from '../ports/ree-api-client.port';
 import { REE_API_CLIENT } from '../ports/ree-api-client.port';
 
+export type SyncFromREEResult =
+  | { success: true; entries: number }
+  | { success: false; error: string };
+
 @Injectable()
 export class SyncFromREEUseCase {
   private readonly logger = new Logger(SyncFromREEUseCase.name);
@@ -13,15 +17,16 @@ export class SyncFromREEUseCase {
     @Inject(BALANCE_REPOSITORY) private readonly repo: IBalanceRepository,
   ) {}
 
-  async execute(date: string): Promise<void> {
+  async execute(date: string): Promise<SyncFromREEResult> {
     try {
       const entries = await this.reeClient.fetchDailyBalance(date);
       await this.repo.upsertMany(entries);
       this.logger.log(`Synced ${entries.length} entries for ${date}`);
+      return { success: true, entries: entries.length };
     } catch (err) {
-      this.logger.warn(
-        `REE sync failed for ${date}: ${(err as Error).message}`,
-      );
+      const error = (err as Error).message;
+      this.logger.warn(`REE sync failed for ${date}: ${error}`);
+      return { success: false, error };
     }
   }
 }

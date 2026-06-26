@@ -37,23 +37,30 @@ describe('SyncFromREEUseCase', () => {
     mockREEClient.fetchDailyBalance.mockResolvedValue([mockEntry]);
     mockRepo.upsertMany.mockResolvedValue(undefined);
 
-    await useCase.execute('2024-01-15');
+    const result = await useCase.execute('2024-01-15');
 
     expect(mockREEClient.fetchDailyBalance).toHaveBeenCalledWith('2024-01-15');
     expect(mockRepo.upsertMany).toHaveBeenCalledWith([mockEntry]);
+    expect(result).toEqual({ success: true, entries: 1 });
   });
 
-  it('no lanza excepción si REE falla (graceful degradation)', async () => {
+  it('devuelve error controlado si REE falla (graceful degradation)', async () => {
     mockREEClient.fetchDailyBalance.mockRejectedValue(new Error('REE down'));
 
-    await expect(useCase.execute('2024-01-15')).resolves.not.toThrow();
+    await expect(useCase.execute('2024-01-15')).resolves.toEqual({
+      success: false,
+      error: 'REE down',
+    });
     expect(mockRepo.upsertMany).not.toHaveBeenCalled();
   });
 
-  it('no lanza excepción si el repositorio falla', async () => {
+  it('devuelve error controlado si el repositorio falla', async () => {
     mockREEClient.fetchDailyBalance.mockResolvedValue([mockEntry]);
     mockRepo.upsertMany.mockRejectedValue(new Error('DB error'));
 
-    await expect(useCase.execute('2024-01-15')).resolves.not.toThrow();
+    await expect(useCase.execute('2024-01-15')).resolves.toEqual({
+      success: false,
+      error: 'DB error',
+    });
   });
 });

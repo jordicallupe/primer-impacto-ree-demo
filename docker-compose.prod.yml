@@ -1,0 +1,36 @@
+services:
+  db:
+    restart: unless-stopped
+    networks:
+      - ree_network
+
+  api:
+    build:
+      context: ./server
+      target: production
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      REE_BASE_URL: ${REE_BASE_URL}
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN}
+    ports:
+      - "${API_PORT:-3000}:3000"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ree_network
+
+  client:
+    build:
+      context: ./client
+      target: production
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    networks:
+      - ree_network
+
+networks:
+  ree_network:

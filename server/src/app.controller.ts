@@ -15,12 +15,29 @@ export class AppController {
     return this.appService.getHello();
   }
 
-  // en el endpoint:
   @Get('health')
-  health() {
+  async health() {
+    if (!this.dataSource.isInitialized) {
+      return {
+        status: 'db_error',
+        db: false,
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    try {
+      await this.dataSource.query('SELECT 1');
+    } catch {
+      return {
+        status: 'db_error',
+        db: false,
+        timestamp: new Date().toISOString(),
+      };
+    }
+
     return {
-      status: this.dataSource.isInitialized ? 'ok' : 'db_error',
-      db: this.dataSource.isInitialized,
+      status: 'ok',
+      db: true,
       timestamp: new Date().toISOString(),
     };
   }

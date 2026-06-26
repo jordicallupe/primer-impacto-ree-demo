@@ -15,7 +15,7 @@ import { ScheduleModule } from '@nestjs/schedule';
       type: 'postgres',
       url: process.env.DATABASE_URL,
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: true, // solo dev
+      synchronize: process.env.NODE_ENV !== 'production',
     }),
     // activa los cron jobs
     ScheduleModule.forRoot(),

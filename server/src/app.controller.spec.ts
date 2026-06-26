@@ -13,7 +13,10 @@ describe('AppController', () => {
         AppService,
         {
           provide: DataSource,
-          useValue: { isInitialized: true },
+          useValue: {
+            isInitialized: true,
+            query: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
+          },
         },
       ],
     }).compile();
@@ -24,6 +27,15 @@ describe('AppController', () => {
   describe('root', () => {
     it('should return "Hello World!"', () => {
       expect(appController.getHello()).toBe('Hello World!');
+    });
+  });
+
+  describe('health', () => {
+    it('should return ok when database answers', async () => {
+      await expect(appController.health()).resolves.toMatchObject({
+        status: 'ok',
+        db: true,
+      });
     });
   });
 });

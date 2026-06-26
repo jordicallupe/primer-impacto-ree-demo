@@ -12,6 +12,7 @@ para mantener el dominio completamente aislado de los frameworks.
 | Base de datos | PostgreSQL 16 |
 | ORM | TypeORM |
 | Frontend | React + TypeScript + Vite |
+| Estilos | Tailwind CSS |
 | Gráficos | Chart.js + react-chartjs-2 |
 | Estado async | React Query (@tanstack/react-query) |
 | Contenedores | Docker + Docker Compose |
@@ -46,6 +47,40 @@ client/src/
 
 El dominio no importa nada de NestJS, TypeORM ni Axios. Las dependencias
 siempre apuntan hacia adentro: infraestructura → dominio, nunca al revés.
+
+## Pipeline de datos
+
+1. `SyncCronJob` ejecuta una sincronización cada hora.
+2. `SyncFromREEUseCase` solicita a REE el balance diario con
+   `start_date`, `end_date` y `time_trunc=day`.
+3. `REEApiClientImpl` transforma la respuesta externa al modelo de dominio
+   `ElectricBalance`.
+4. `BalanceTypeORMRepository` persiste los datos con upsert sobre PostgreSQL.
+5. `GET /balance` sirve datos históricos ya almacenados para el frontend.
+
+El endpoint `GET /balance/sync?date=YYYY-MM-DD` permite forzar una
+sincronización manual para pruebas o recuperación de datos.
+
+## Modelo de datos
+
+La tabla `electric_balance` guarda una fila por fecha y fuente de balance:
+
+| Campo | Descripción |
+|---|---|
+| `date` | Día del dato sincronizado |
+| `group_id` | Grupo de REE: renovable, no renovable, demanda, etc. |
+| `source_id` | Identificador de la tecnología o total |
+| `source_name` | Nombre legible de la fuente |
+| `is_total` | Indica si la fila representa el total del grupo |
+| `value_mwh` | Valor energético en MWh |
+| `percentage` | Peso relativo informado por REE |
+
+Existe una restricción única sobre `date + source_id`, por lo que repetir una
+sincronización actualiza los datos sin duplicarlos.
+
+## Vista del frontend
+
+![Vista previa del dashboard](docs/dashboard-preview.png)
 
 ## Estructura del proyecto
 
@@ -120,12 +155,21 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
 # Backend (Jest)
 docker compose exec api npm test
 
+# Backend e2e
+docker compose exec api npm run test:e2e
+
 # Frontend (Vitest)
 docker compose exec client npm test
+
+# También pueden ejecutarse localmente:
+cd server && npm test
+cd server && npm run test:e2e
+cd client && npm test
 ```
 
-**12 tests en total:**
-- 3 suites backend: `SyncFromREEUseCase`, `GetBalanceUseCase`, `AppController`
+**21 tests automatizados:**
+- 5 suites backend unitarias: `SyncFromREEUseCase`, `GetBalanceUseCase`, `BalanceController`, `REEApiClient`, `AppController`
+- 1 suite e2e backend: API REST de `/balance`
 - 2 suites frontend: `BalanceChart`, `App`
 
 Los tests del dominio no requieren base de datos ni HTTP — usan mocks puros
@@ -138,6 +182,9 @@ de `IBalanceRepository` e `IREEApiClient`.
 | `GET` | `/health` | Estado del servidor y conexión a BD |
 | `GET` | `/balance?from=YYYY-MM-DD&to=YYYY-MM-DD` | Balance eléctrico por rango de fechas |
 | `GET` | `/balance/sync?date=YYYY-MM-DD` | Forzar sincronización con REE |
+
+Las fechas se validan en formato `YYYY-MM-DD`, se rechazan fechas imposibles y
+`from` no puede ser posterior a `to`.
 
 ## Variables de entorno
 
@@ -157,3 +204,5 @@ de `IBalanceRepository` e `IREEApiClient`.
 - **Graceful degradation:** si la API de REE falla, el sistema loguea el error y continúa sirviendo los datos ya almacenados.
 - **`keepPreviousData` en React Query:** al cambiar el rango de fechas, el gráfico anterior permanece visible mientras carga el nuevo — sin parpadeo.
 - **Zonas horarias:** `date-fns-tz` con `Europe/Madrid` para que el cron job sincronice el día correcto según la hora peninsular española.
+- **Docker multi-stage:** el backend compila con dependencias de desarrollo en un stage intermedio y ejecuta producción solo con dependencias runtime.
+- **TypeORM seguro por entorno:** `synchronize` solo se activa fuera de producción; en un despliegue real se sustituiría por migraciones versionadas.

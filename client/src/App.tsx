@@ -7,8 +7,8 @@ import { BalanceChartSkeleton } from './features/electric-balance/components/Bal
 const queryClient = new QueryClient();
 
 function BalanceDashboard() {
-  const [from, setFrom] = useState('2024-01-01');                                      
-  const [to, setTo]     = useState('2024-01-07');
+  const [from, setFrom] = useState('2024-01-01');
+  const [to, setTo] = useState('2024-01-07');
 
   const { data, isLoading, isError, refetch } = useBalanceQuery(from, to);
 
@@ -25,8 +25,7 @@ function BalanceDashboard() {
         </label>
       </div>
 
-      {isLoading && <BalanceChartSkeleton />}
-
+      {isLoading && <div data-testid="chart-skeleton"><BalanceChartSkeleton /></div>}
       {isError && (
         <div>
           <p>Error al cargar los datos.</p>

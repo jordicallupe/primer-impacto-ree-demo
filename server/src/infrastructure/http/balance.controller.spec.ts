@@ -25,7 +25,15 @@ describe('BalanceController', () => {
 
     await controller.getRange('2024-01-01', '2024-01-31');
 
-    expect(getBalance.execute).toHaveBeenCalledWith('2024-01-01', '2024-01-31');
+    expect(getBalance.execute).toHaveBeenCalledWith(
+      '2024-01-01',
+      '2024-01-31',
+      {
+        timeTrunc: 'day',
+        geoLimit: 'national',
+        geoIds: 'all',
+      },
+    );
   });
 
   it('rechaza fechas con formato incorrecto', async () => {

@@ -1,13 +1,14 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { fetchBalance } from './balance.client';
+import type { BalanceQueryParams } from './balance.client';
 
-export function useBalanceQuery(from: string, to: string) {
+export function useBalanceQuery(params: BalanceQueryParams) {
   return useQuery({
-    queryKey: ['balance', from, to],
-    queryFn: () => fetchBalance(from, to),
-    enabled: !!from && !!to,       // no ejecuta si faltan fechas
-    staleTime: 1000 * 60 * 5,      // 5 min en caché
-    retry: 3,                       // 3 reintentos automáticos
+    queryKey: ['balance', params],
+    queryFn: () => fetchBalance(params),
+    enabled: !!params.from && !!params.to,
+    staleTime: 1000 * 60 * 5,
+    retry: 3,
     placeholderData: keepPreviousData, // no parpadeo al cambiar fechas
   });
 }

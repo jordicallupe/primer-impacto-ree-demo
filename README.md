@@ -51,8 +51,8 @@ siempre apuntan hacia adentro: infraestructura → dominio, nunca al revés.
 ## Pipeline de datos
 
 1. `SyncCronJob` ejecuta una sincronización cada hora.
-2. `SyncFromREEUseCase` solicita a REE el balance diario con
-   `start_date`, `end_date` y `time_trunc=day`.
+2. `SyncFromREEUseCase` solicita a REE el balance con `start_date`,
+   `end_date`, `time_trunc` y, opcionalmente, parámetros geográficos.
 3. `REEApiClientImpl` transforma la respuesta externa al modelo de dominio
    `ElectricBalance`.
 4. `BalanceTypeORMRepository` persiste los datos con upsert sobre PostgreSQL.
@@ -74,13 +74,23 @@ La tabla `electric_balance` guarda una fila por fecha y fuente de balance:
 | `is_total` | Indica si la fila representa el total del grupo |
 | `value_mwh` | Valor energético en MWh |
 | `percentage` | Peso relativo informado por REE |
+| `time_trunc` | Agregación temporal: `day`, `month` o `year` |
+| `geo_limit` | Ámbito eléctrico: nacional, peninsular, Canarias, etc. |
+| `geo_ids` | Identificador geográfico REE o `all` para nacional |
+| `source_color` | Color proporcionado por REE para pintar la serie |
+| `magnitude` | Magnitud declarada por REE |
 
-Existe una restricción única sobre `date + source_id`, por lo que repetir una
-sincronización actualiza los datos sin duplicarlos.
+Existe una restricción única sobre `date + source_id + time_trunc + geo_limit
++ geo_ids`, por lo que repetir una sincronización actualiza los datos sin
+duplicarlos ni mezclar ámbitos distintos.
 
 ## Vista del frontend
 
 ![Vista previa del dashboard](docs/dashboard-preview.png)
+
+La interfaz permite comparar totales o detalle por tecnología, cambiar la
+agregación diaria/mensual/anual, filtrar por ámbito eléctrico, revisar KPIs
+agregados y consultar una tabla ordenada de tecnologías.
 
 ## Estructura del proyecto
 
@@ -128,8 +138,14 @@ gracias al hot reload montado como volumen Docker.
 # Sincronizar una fecha concreta desde la API de REE
 curl "http://localhost:3000/balance/sync?date=2024-01-15"
 
+# Sincronizar un ámbito y agregación concreta
+curl "http://localhost:3000/balance/sync?date=2024-01-15&timeTrunc=day&geoLimit=peninsular&geoIds=8741"
+
 # Consultar los datos guardados
 curl "http://localhost:3000/balance?from=2024-01-01&to=2024-01-31"
+
+# Consultar los datos guardados con filtros
+curl "http://localhost:3000/balance?from=2024-01-01&to=2024-01-31&timeTrunc=day&geoLimit=peninsular&geoIds=8741"
 ```
 
 ## Producción
@@ -186,6 +202,14 @@ de `IBalanceRepository` e `IREEApiClient`.
 Las fechas se validan en formato `YYYY-MM-DD`, se rechazan fechas imposibles y
 `from` no puede ser posterior a `to`.
 
+Parámetros opcionales:
+
+| Parámetro | Valores |
+|---|---|
+| `timeTrunc` | `day`, `month`, `year` |
+| `geoLimit` | `national`, `peninsular`, `canarias`, `baleares`, `ceuta`, `melilla` |
+| `geoIds` | `all`, `8741`, `8742`, `8743`, `8744`, `8745` |
+
 ## Variables de entorno
 
 | Variable | Descripción |
@@ -200,7 +224,7 @@ Las fechas se validan en formato `YYYY-MM-DD`, se rechazan fechas imposibles y
 
 ## Decisiones técnicas
 
-- **Upsert idempotente:** constraint `UNIQUE(date, source_id)` en PostgreSQL. El cron job puede ejecutarse N veces sin duplicar datos.
+- **Upsert idempotente:** constraint `UNIQUE(date, source_id, time_trunc, geo_limit, geo_ids)` en PostgreSQL. El cron job puede ejecutarse N veces sin duplicar datos.
 - **Graceful degradation:** si la API de REE falla, el sistema loguea el error y continúa sirviendo los datos ya almacenados.
 - **`keepPreviousData` en React Query:** al cambiar el rango de fechas, el gráfico anterior permanece visible mientras carga el nuevo — sin parpadeo.
 - **Zonas horarias:** `date-fns-tz` con `Europe/Madrid` para que el cron job sincronice el día correcto según la hora peninsular española.

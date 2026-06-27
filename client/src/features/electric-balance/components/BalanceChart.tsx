@@ -15,6 +15,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 interface Props {
   data: BalanceEntry[];
+  mode?: 'totals' | 'detail';
 }
 
 const COLORS: Record<string, string> = {
@@ -24,32 +25,36 @@ const COLORS: Record<string, string> = {
   'Demanda':        'rgba(74, 144, 217, 0.8)',
 };
 
-function transformData(entries: BalanceEntry[]) {
-  const totals = entries.filter(e => e.isTotal);
-  const dates  = [...new Set(totals.map(e => e.date))].sort();
-  const groups = [...new Set(totals.map(e => e.groupId))];
+function transformData(entries: BalanceEntry[], mode: 'totals' | 'detail') {
+  const filtered =
+    mode === 'totals' ? entries.filter(e => e.isTotal) : entries.filter(e => !e.isTotal);
+  const dates  = [...new Set(filtered.map(e => e.date))].sort();
+  const groups = [...new Set(filtered.map(e => mode === 'totals' ? e.groupId : e.sourceName))];
 
   const datasets = groups.map(group => ({
     label: group,
     data: dates.map(date => {
-      const entry = totals.find(e => e.date === date && e.groupId === group);
-      return entry ? Math.abs(entry.valueMwh) / 1000 : 0;
+      return filtered
+        .filter(e => e.date === date && (mode === 'totals' ? e.groupId : e.sourceName) === group)
+        .reduce((sum, entry) => sum + Math.abs(entry.valueMwh) / 1000, 0);
     }),
-    backgroundColor: COLORS[group] ?? 'rgba(136, 132, 216, 0.8)',
+    backgroundColor:
+      filtered.find(e => (mode === 'totals' ? e.groupId : e.sourceName) === group)
+        ?.sourceColor ?? COLORS[group] ?? 'rgba(136, 132, 216, 0.8)',
     stack: 'balance',
   }));
 
   return { labels: dates, datasets };
 }
 
-export function BalanceChart({ data }: Props) {
-  const chartData = transformData(data);
+export function BalanceChart({ data, mode = 'totals' }: Props) {
+  const chartData = transformData(data, mode);
 
   const options = {
     responsive: true,
     plugins: {
       legend: { position: 'top' as const },
-      title: { display: true, text: 'Balance Eléctrico (GWh)' },
+      title: { display: true, text: mode === 'totals' ? 'Balance Eléctrico (GWh)' : 'Detalle por tecnología (GWh)' },
       tooltip: {
         callbacks: {
           label: (ctx: TooltipItem<'bar'>) => {

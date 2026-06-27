@@ -39,7 +39,10 @@ describe('SyncFromREEUseCase', () => {
 
     const result = await useCase.execute('2024-01-15');
 
-    expect(mockREEClient.fetchDailyBalance).toHaveBeenCalledWith('2024-01-15');
+    expect(mockREEClient.fetchDailyBalance).toHaveBeenCalledWith(
+      '2024-01-15',
+      undefined,
+    );
     expect(mockRepo.upsertMany).toHaveBeenCalledWith([mockEntry]);
     expect(result).toEqual({ success: true, entries: 1 });
   });

@@ -6,4 +6,9 @@ export interface BalanceEntry {
   isTotal: boolean;
   valueMwh: number;
   percentage: number;
+  timeTrunc?: string;
+  geoLimit?: string;
+  geoIds?: string;
+  sourceColor?: string | null;
+  magnitude?: string | null;
 }

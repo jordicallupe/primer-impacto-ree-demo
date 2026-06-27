@@ -7,5 +7,10 @@ export class ElectricBalance {
     public readonly isTotal: boolean,
     public readonly valueMwh: number,
     public readonly percentage: number,
+    public readonly timeTrunc: string = 'day',
+    public readonly geoLimit: string = 'national',
+    public readonly geoIds: string = 'all',
+    public readonly sourceColor: string | null = null,
+    public readonly magnitude: string | null = null,
   ) {}
 }

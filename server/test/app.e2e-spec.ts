@@ -60,10 +60,23 @@ describe('Balance API (e2e)', () => {
           isTotal: true,
           valueMwh: 296067.6,
           percentage: 1,
+          timeTrunc: 'day',
+          geoLimit: 'national',
+          geoIds: 'all',
+          sourceColor: null,
+          magnitude: null,
         },
       ]);
 
-    expect(getBalance.execute).toHaveBeenCalledWith('2024-01-01', '2024-01-31');
+    expect(getBalance.execute).toHaveBeenCalledWith(
+      '2024-01-01',
+      '2024-01-31',
+      {
+        timeTrunc: 'day',
+        geoLimit: 'national',
+        geoIds: 'all',
+      },
+    );
   });
 
   it('GET /balance rejects invalid dates', async () => {

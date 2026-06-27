@@ -24,6 +24,8 @@ describe('REEApiClientImpl', () => {
                   attributes: {
                     title: 'Eólica',
                     composite: false,
+                    color: '#00a3e0',
+                    magnitude: 'MW',
                     values: [
                       {
                         value: 159629.9,
@@ -63,6 +65,11 @@ describe('REEApiClientImpl', () => {
         isTotal: false,
         valueMwh: 159629.9,
         percentage: 0.539,
+        timeTrunc: 'day',
+        geoLimit: 'national',
+        geoIds: 'all',
+        sourceColor: '#00a3e0',
+        magnitude: 'MW',
       },
     ]);
   });

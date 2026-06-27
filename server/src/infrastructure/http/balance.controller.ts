@@ -29,6 +29,18 @@ const rangeQuerySchema = z
   .object({
     from: isoDateSchema,
     to: isoDateSchema,
+    timeTrunc: z.enum(['day', 'month', 'year']).optional(),
+    geoLimit: z
+      .enum([
+        'national',
+        'peninsular',
+        'canarias',
+        'baleares',
+        'ceuta',
+        'melilla',
+      ])
+      .optional(),
+    geoIds: z.string().optional(),
   })
   .refine(({ from, to }) => from <= to, {
     message: 'from must be earlier than or equal to to',
@@ -37,6 +49,18 @@ const rangeQuerySchema = z
 
 const syncQuerySchema = z.object({
   date: isoDateSchema.optional(),
+  timeTrunc: z.enum(['day', 'month', 'year']).optional(),
+  geoLimit: z
+    .enum([
+      'national',
+      'peninsular',
+      'canarias',
+      'baleares',
+      'ceuta',
+      'melilla',
+    ])
+    .optional(),
+  geoIds: z.string().optional(),
 });
 
 type RangeQuery = z.infer<typeof rangeQuerySchema>;
@@ -66,18 +90,57 @@ export class BalanceController {
   ) {}
 
   @Get()
-  async getRange(@Query('from') from: string, @Query('to') to: string) {
-    const query: RangeQuery = parseQuery(rangeQuerySchema, { from, to });
+  async getRange(
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('timeTrunc') timeTrunc?: string,
+    @Query('geoLimit') geoLimit?: string,
+    @Query('geoIds') geoIds?: string,
+  ) {
+    const query: RangeQuery = parseQuery(rangeQuerySchema, {
+      from,
+      to,
+      timeTrunc,
+      geoLimit,
+      geoIds,
+    });
 
-    return this.getBalance.execute(query.from, query.to);
+    return this.getBalance.execute(query.from, query.to, {
+      timeTrunc: query.timeTrunc ?? 'day',
+      geoLimit: query.geoLimit ?? 'national',
+      geoIds: query.geoIds ?? 'all',
+    });
   }
 
   @Get('sync')
-  async syncToday(@Query('date') date?: string) {
+  async syncToday(
+    @Query('date') date?: string,
+    @Query('timeTrunc') timeTrunc?: string,
+    @Query('geoLimit') geoLimit?: string,
+    @Query('geoIds') geoIds?: string,
+  ) {
     const madrid = toZonedTime(new Date(), 'Europe/Madrid');
-    const query: SyncQuery = parseQuery(syncQuerySchema, { date });
-    const target = query.date ?? format(subDays(madrid, 1), 'yyyy-MM-dd');
-    const result = await this.syncUseCase.execute(target);
+    const syncQuery: SyncQuery = parseQuery(syncQuerySchema, {
+      date,
+      timeTrunc,
+      geoLimit,
+      geoIds,
+    });
+    const target = syncQuery.date ?? format(subDays(madrid, 1), 'yyyy-MM-dd');
+    const result = await this.syncUseCase.execute(target, {
+      timeTrunc: syncQuery.timeTrunc ?? 'day',
+      ...(syncQuery.geoLimit && syncQuery.geoIds
+        ? {
+            ...(syncQuery.geoLimit === 'national'
+              ? {}
+              : {
+                  geoTrunc: 'electric_system' as const,
+                  geoLimit: syncQuery.geoLimit,
+                  geoIds: syncQuery.geoIds,
+                }),
+          }
+        : {}),
+    });
 
     if (!result.success) {
       throw new ServiceUnavailableException({

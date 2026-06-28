@@ -25,6 +25,22 @@ const COLORS: Record<string, string> = {
   'Demanda':        'rgba(74, 144, 217, 0.8)',
 };
 
+function getDatasetColor(
+  group: string,
+  entries: BalanceEntry[],
+  mode: 'totals' | 'detail',
+) {
+  const entry = entries.find(e =>
+    mode === 'totals' ? e.groupId === group : e.sourceName === group,
+  );
+
+  if (mode === 'totals') {
+    return COLORS[group] ?? entry?.sourceColor ?? 'rgba(136, 132, 216, 0.8)';
+  }
+
+  return entry?.sourceColor ?? COLORS[entry?.groupId ?? ''] ?? 'rgba(136, 132, 216, 0.8)';
+}
+
 function transformData(entries: BalanceEntry[], mode: 'totals' | 'detail') {
   const filtered =
     mode === 'totals' ? entries.filter(e => e.isTotal) : entries.filter(e => !e.isTotal);
@@ -38,9 +54,7 @@ function transformData(entries: BalanceEntry[], mode: 'totals' | 'detail') {
         .filter(e => e.date === date && (mode === 'totals' ? e.groupId : e.sourceName) === group)
         .reduce((sum, entry) => sum + Math.abs(entry.valueMwh) / 1000, 0);
     }),
-    backgroundColor:
-      filtered.find(e => (mode === 'totals' ? e.groupId : e.sourceName) === group)
-        ?.sourceColor ?? COLORS[group] ?? 'rgba(136, 132, 216, 0.8)',
+    backgroundColor: getDatasetColor(group, filtered, mode),
     stack: 'balance',
   }));
 

@@ -1,6 +1,12 @@
 import { useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  QueryClient,
+  QueryClientProvider,
+  useMutation,
+} from '@tanstack/react-query';
+import { eachDayOfInterval, format } from 'date-fns';
 import { useBalanceQuery } from './features/electric-balance/api/useBalanceQuery';
+import { syncBalance } from './features/electric-balance/api/balance.client';
 import { BalanceChart } from './features/electric-balance/components/BalanceChart';
 import { BalanceChartSkeleton } from './features/electric-balance/components/BalanceChartSkeleton';
 import type { BalanceEntry } from './features/electric-balance/types/balance.types';
@@ -63,6 +69,17 @@ function getTechnologyRows(entries: BalanceEntry[]) {
   return [...rows.values()].sort((a, b) => b.valueMwh - a.valueMwh);
 }
 
+function getSyncDates(from: string, to: string, timeTrunc: string) {
+  if (timeTrunc !== 'day') {
+    return [from];
+  }
+
+  return eachDayOfInterval({
+    start: new Date(`${from}T00:00:00`),
+    end: new Date(`${to}T00:00:00`),
+  }).map(date => format(date, 'yyyy-MM-dd'));
+}
+
 function BalanceDashboard() {
   const [from, setFrom] = useState('2026-01-01');
   const [to, setTo] = useState('2026-12-31');
@@ -71,12 +88,34 @@ function BalanceDashboard() {
   const [chartMode, setChartMode] = useState<'totals' | 'detail'>('totals');
 
   const geo = GEO_OPTIONS.find(option => option.geoLimit === geoKey) ?? GEO_OPTIONS[0];
-  const { data, isLoading, isError, refetch } = useBalanceQuery({
+  const balanceParams = {
     from,
     to,
     timeTrunc,
     geoLimit: geo.geoLimit,
     geoIds: geo.geoIds,
+  };
+  const { data, isLoading, isError, refetch } = useBalanceQuery(balanceParams);
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const dates = getSyncDates(from, to, timeTrunc);
+      const results = [];
+
+      for (const date of dates) {
+        results.push(
+          await syncBalance({
+            ...balanceParams,
+            from: date,
+            to: date,
+          }),
+        );
+      }
+
+      return results;
+    },
+    onSuccess: () => {
+      void refetch();
+    },
   });
   const kpis = getKpis(data ?? []);
   const technologyRows = getTechnologyRows(data ?? []);
@@ -241,9 +280,26 @@ function BalanceDashboard() {
         <section className="rounded-lg border border-slate-300 bg-white p-5 text-left text-slate-700">
           <p className="m-0 font-semibold text-slate-900">No hay datos para esta combinación.</p>
           <p className="mt-2 mb-0">
-            Sincroniza primero ese rango, agregación y ámbito desde el endpoint
-            <code className="mx-1 rounded bg-slate-100 px-1.5 py-0.5">/balance/sync</code>.
+            Sincroniza primero ese rango, agregación y ámbito.
           </p>
+          <button
+            className="mt-4 cursor-pointer rounded-md bg-emerald-800 px-4 py-2.5 font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+            disabled={syncMutation.isPending}
+            onClick={() => syncMutation.mutate()}
+            type="button"
+          >
+            {syncMutation.isPending ? 'Sincronizando...' : 'Sincronizar esta combinación'}
+          </button>
+          {syncMutation.isError && (
+            <p className="mt-3 mb-0 text-sm text-red-700">
+              No se pudo sincronizar. Revisa la conexión con REE e inténtalo de nuevo.
+            </p>
+          )}
+          {syncMutation.isSuccess && (
+            <p className="mt-3 mb-0 text-sm text-emerald-700">
+              Sincronización completada. Actualizando datos...
+            </p>
+          )}
         </section>
       )}
     </main>

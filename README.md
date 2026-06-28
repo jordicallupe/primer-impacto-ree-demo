@@ -19,6 +19,46 @@ para mantener el dominio completamente aislado de los frameworks.
 | Tests backend | Jest |
 | Tests frontend | Vitest + React Testing Library |
 
+## Quick start
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+Cuando los servicios estén levantados:
+
+| Servicio | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| API | http://localhost:3000 |
+| Health check | http://localhost:3000/health |
+
+La base de datos arranca vacía. Para ver datos en el dashboard, sincroniza
+primero un rango. Por ejemplo, junio de 2026 en agregación diaria nacional:
+
+```bash
+for d in $(seq -w 1 26); do
+  curl "http://localhost:3000/balance/sync?date=2026-06-$d&timeTrunc=day"
+done
+```
+
+Después abre el frontend y selecciona:
+
+| Filtro | Valor |
+|---|---|
+| Desde | `2026-06-01` |
+| Hasta | `2026-06-26` |
+| Agregación | `Diaria` |
+| Ámbito | `Nacional` |
+
+Para resetear completamente la demo y la base de datos:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
 ## Arquitectura
 
 ```
@@ -67,7 +107,7 @@ La tabla `electric_balance` guarda una fila por fecha y fuente de balance:
 
 | Campo | Descripción |
 |---|---|
-| `date` | Día del dato sincronizado |
+| `datetime` | Día del dato sincronizado |
 | `group_id` | Grupo de REE: renovable, no renovable, demanda, etc. |
 | `source_id` | Identificador de la tecnología o total |
 | `source_name` | Nombre legible de la fuente |
@@ -80,7 +120,7 @@ La tabla `electric_balance` guarda una fila por fecha y fuente de balance:
 | `source_color` | Color proporcionado por REE para pintar la serie |
 | `magnitude` | Magnitud declarada por REE |
 
-Existe una restricción única sobre `date + source_id + time_trunc + geo_limit
+Existe una restricción única sobre `datetime + source_id + time_trunc + geo_limit
 + geo_ids`, por lo que repetir una sincronización actualiza los datos sin
 duplicarlos ni mezclar ámbitos distintos.
 
@@ -90,7 +130,8 @@ duplicarlos ni mezclar ámbitos distintos.
 
 La interfaz permite comparar totales o detalle por tecnología, cambiar la
 agregación diaria/mensual/anual, filtrar por ámbito eléctrico, revisar KPIs
-agregados y consultar una tabla ordenada de tecnologías.
+agregados, consultar una tabla ordenada de tecnologías y sincronizar
+manualmente una combinación vacía desde el propio frontend.
 
 ## Estructura del proyecto
 
@@ -148,6 +189,11 @@ curl "http://localhost:3000/balance?from=2024-01-01&to=2024-01-31"
 curl "http://localhost:3000/balance?from=2024-01-01&to=2024-01-31&timeTrunc=day&geoLimit=peninsular&geoIds=8741"
 ```
 
+La sincronización automática se ejecuta cada hora y carga el día anterior en
+ámbito nacional con agregación diaria. Las combinaciones avanzadas de
+agregación o ámbito se cargan bajo demanda mediante `/balance/sync` o desde el
+botón del frontend cuando una combinación no tiene datos.
+
 ## Producción
 
 Antes de levantar en producción, actualizar en `.env`:
@@ -191,6 +237,23 @@ cd client && npm test
 Los tests del dominio no requieren base de datos ni HTTP — usan mocks puros
 de `IBalanceRepository` e `IREEApiClient`.
 
+## Troubleshooting
+
+Si el frontend no muestra datos, comprueba que has sincronizado exactamente la
+misma combinación de filtros que estás consultando: rango, `timeTrunc`,
+`geoLimit` y `geoIds`.
+
+Si Docker sigue usando dependencias antiguas después de instalar paquetes:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+Si la API de REE falla con `EAI_AGAIN`, es un problema temporal de DNS/red
+dentro del contenedor. El cliente hace reintentos, pero puede volver a probarse
+la sincronización manual unos segundos después.
+
 ## API REST
 
 | Método | Ruta | Descripción |
@@ -224,7 +287,7 @@ Parámetros opcionales:
 
 ## Decisiones técnicas
 
-- **Upsert idempotente:** constraint `UNIQUE(date, source_id, time_trunc, geo_limit, geo_ids)` en PostgreSQL. El cron job puede ejecutarse N veces sin duplicar datos.
+- **Upsert idempotente:** constraint `UNIQUE(datetime, source_id, time_trunc, geo_limit, geo_ids)` en PostgreSQL. El cron job puede ejecutarse N veces sin duplicar datos.
 - **Graceful degradation:** si la API de REE falla, el sistema loguea el error y continúa sirviendo los datos ya almacenados.
 - **`keepPreviousData` en React Query:** al cambiar el rango de fechas, el gráfico anterior permanece visible mientras carga el nuevo — sin parpadeo.
 - **Zonas horarias:** `date-fns-tz` con `Europe/Madrid` para que el cron job sincronice el día correcto según la hora peninsular española.

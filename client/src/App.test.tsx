@@ -8,6 +8,10 @@ vi.mock('./features/electric-balance/api/useBalanceQuery', () => ({
     useBalanceQuery: vi.fn(),
 }));
 
+vi.mock('./features/electric-balance/api/balance.client', () => ({
+    syncBalance: vi.fn(),
+}));
+
 vi.mock('react-chartjs-2', () => ({
     Bar: () => <canvas data-testid="balance-chart" />,
 }));
@@ -72,5 +76,11 @@ describe('App', () => {
         mockUseBalanceQuery.mockReturnValue(makeQueryResult({ data, isSuccess: true, status: 'success' }));
         render(<App />);
         expect(screen.getByTestId('balance-chart')).toBeInTheDocument();
+    });
+
+    it('muestra acción de sincronización cuando no hay datos', () => {
+        mockUseBalanceQuery.mockReturnValue(makeQueryResult({ data: [], isSuccess: true, status: 'success' }));
+        render(<App />);
+        expect(screen.getByText('Sincronizar esta combinación')).toBeInTheDocument();
     });
 });

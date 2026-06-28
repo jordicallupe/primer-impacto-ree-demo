@@ -21,3 +21,31 @@ export async function fetchBalance({
   });
   return data;
 }
+
+export interface SyncBalanceResult {
+  synced: boolean;
+  date: string;
+  entries: number;
+}
+
+export async function syncBalance({
+  from,
+  timeTrunc,
+  geoLimit,
+  geoIds,
+}: BalanceQueryParams): Promise<SyncBalanceResult> {
+  const params: Record<string, string> = {
+    date: from,
+    timeTrunc,
+  };
+
+  if (geoLimit !== 'national') {
+    params.geoLimit = geoLimit;
+    params.geoIds = geoIds;
+  }
+
+  const { data } = await apiClient.get<SyncBalanceResult>('/balance/sync', {
+    params,
+  });
+  return data;
+}
